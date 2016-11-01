@@ -27,8 +27,8 @@ import httplib2
 #       "token_uri": "https://accounts.google.com/o/oauth2/token"
 #     }
 #   }
-CLIENTSECRETS_LOCATION = '<PATH/TO/CLIENT_SECRETS.JSON>'
-REDIRECT_URI = '<YOUR_REGISTERED_REDIRECT_URI>'
+CLIENTSECRETS_LOCATION = os.path.join(os.path.dirname(__file__), 'cred.json')
+REDIRECT_URI = 'http://localhost:4567'
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/gmail.labels',
@@ -152,10 +152,10 @@ def get_credentials(authorization_code, state):
         email_address = user_info.get('email')
         user_id = user_info.get('id')
         if credentials.refresh_token is not None:
-            store_credentials(user_id, credentials)
+            #store_credentials(user_id, credentials)
             return credentials
         else:
-            credentials = get_stored_credentials(user_id)
+            #credentials = get_stored_credentials(user_id)
             if credentials and credentials.refresh_token is not None:
                 return credentials
     except CodeExchangeException, error:
@@ -172,7 +172,7 @@ def get_credentials(authorization_code, state):
     raise NoRefreshTokenException(authorization_url)
 
 
-def update_thread_labels(service, user_id, thread_id, msg_labels):
+def update_thread_labels(service, user_id):
     """Updates the lables in a thread.
 
     Args:
@@ -185,15 +185,27 @@ def update_thread_labels(service, user_id, thread_id, msg_labels):
     Returns:
         Thread with modified Labels.
     """
+    query = 'in:inbox'
     try:
-        thread = service.users().threads().modify(userId=user_id, id=thread_id,
-                                              body=msg_labels).execute()
+        response = service.users().threads().list(userId=user_id, q=query).execute()
+        threads = []
+        if 'threads' in response:
+            threads.extend(response['threads'])
 
-        thread_id = thread['id']
-        label_ids = thread['messages'][0]['labelIds']
+        while 'nextPageToken' in response:
+            page_token = response['nextPageToken']
+            response = service.users().threads().list(userId=user_id, q=query,
+                                                      pageToken=page_token).execute()
+            threads.extend(response['threads'])
+        print(threads)
 
-        print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
-        return thread
+        #thread = service.users().threads().modify(userId=user_id, id=thread_id,
+        #                                      body=msg_labels).execute()
+        #thread_id = thread['id']
+        #label_ids = thread['messages'][0]['labelIds']
+
+        #print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
+        #return thread
     except errors.HttpError, error:
         print 'An error occurred: %s' % error
 
@@ -217,6 +229,10 @@ def gmail_service(credentials):
 def main(args):
     credentials = get_credentials()
     service = gmail_service(credentials)
+    user_info = get_user_info(credentials)
+    user_id = user_info.get('id')
+    update_thread_labels(service, user_id)
+
 
 
 if __name__ == '__main__':
