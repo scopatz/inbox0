@@ -78,7 +78,7 @@ def exchange_code(authorization_code):
     try:
         credentials = flow.step2_exchange(authorization_code)
         return credentials
-    except FlowExchangeError, error:
+    except FlowExchangeError as error:
         logging.error('An error occurred: %s', error)
         raise CodeExchangeException(None)
 
@@ -158,7 +158,7 @@ def get_credentials(authorization_code, state):
             #credentials = get_stored_credentials(user_id)
             if credentials and credentials.refresh_token is not None:
                 return credentials
-    except CodeExchangeException, error:
+    except CodeExchangeException as error:
         logging.error('An error occurred during code exchange.')
         # Drive apps should try to retrieve the user and credentials for the current
         # session.
@@ -206,7 +206,7 @@ def update_thread_labels(service, user_id):
 
         #print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
         #return thread
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print 'An error occurred: %s' % error
 
 
