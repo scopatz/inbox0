@@ -6,6 +6,7 @@ Copyright Google, Inc. 2016. under Apache 2 licence.
 import os
 import json
 import logging
+from urllib.parse import urlparse
 
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
@@ -73,8 +74,7 @@ def exchange_code(authorization_code):
     Raises:
         CodeExchangeException: an error occurred.
     """
-    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES))
-    flow.redirect_uri = REDIRECT_URI
+    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES), REDIRECT_URI)
     try:
         credentials = flow.step2_exchange(authorization_code)
         return credentials
@@ -98,7 +98,7 @@ def get_user_info(credentials):
     user_info = None
     try:
         user_info = user_info_service.userinfo().get().execute()
-    except errors.HttpError, e:
+    except errors.HttpError as e:
         logging.error('An error occurred: %s', e)
     if user_info and user_info.get('id'):
         return user_info
@@ -115,12 +115,12 @@ def get_authorization_url(email_address, state):
     Returns:
         Authorization URL to redirect the user to.
     """
-    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES))
+    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES), REDIRECT_URI)
     flow.params['access_type'] = 'offline'
     flow.params['approval_prompt'] = 'force'
     flow.params['user_id'] = email_address
     flow.params['state'] = state
-    return flow.step1_get_authorize_url(REDIRECT_URI)
+    return flow.step1_get_authorize_url()
 
 
 def get_credentials(authorization_code, state):
@@ -207,7 +207,7 @@ def update_thread_labels(service, user_id):
         #print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
         #return thread
     except errors.HttpError as error:
-        print 'An error occurred: %s' % error
+        print('An error occurred: {0}'.format(error))
 
 
 #def CreateMsgLabels():
@@ -226,8 +226,11 @@ def gmail_service(credentials):
     return build('gmail', 'v1', http=http)
 
 
-def main(args):
-    credentials = get_credentials()
+def main(args=None):
+    state = 500
+    auth_uri = get_authorization_url('scopatz@gmail.com', state)
+    auth_code = urlparse(auth_uri).query.partition('=')[2]
+    credentials = get_credentials(auth_code, state)
     service = gmail_service(credentials)
     user_info = get_user_info(credentials)
     user_id = user_info.get('id')
