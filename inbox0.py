@@ -6,11 +6,10 @@ Copyright Google, Inc. 2016. under Apache 2 licence.
 import os
 import json
 import logging
-from urllib.parse import urlparse
+from pprint import pprint
 
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
-from apiclient.discovery import build
 from apiclient.discovery import build
 from apiclient import errors
 
@@ -139,72 +138,6 @@ def get_user_info(credentials):
         raise NoUserIdException()
 
 
-def get_authorization_url(email_address, state):
-    """Retrieve the authorization URL.
-
-    Args:
-        email_address: User's e-mail address.
-        state: State for the authorization URL.
-    Returns:
-        Authorization URL to redirect the user to.
-    """
-    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES))
-    flow.params['access_type'] = 'offline'
-    flow.params['approval_prompt'] = 'force'
-    flow.params['user_id'] = email_address
-    flow.params['state'] = state
-    return flow.step1_get_authorize_url()
-
-
-def get_credentials(authorization_code, state):
-    """Retrieve credentials using the provided authorization code.
-
-    This function exchanges the authorization code for an access token and queries
-    the UserInfo API to retrieve the user's e-mail address.
-    If a refresh token has been retrieved along with an access token, it is stored
-    in the application database using the user's e-mail address as key.
-    If no refresh token has been retrieved, the function checks in the application
-    database for one and returns it if found or raises a NoRefreshTokenException
-    with the authorization URL to redirect the user to.
-
-    Args:
-        authorization_code: Authorization code to use to retrieve an access token.
-        state: State to set to the authorization URL in case of error.
-    Returns:
-        oauth2client.client.OAuth2Credentials instance containing an access and
-        refresh token.
-    Raises:
-        CodeExchangeError: Could not exchange the authorization code.
-        NoRefreshTokenException: No refresh token could be retrieved from the
-                                 available sources.
-    """
-    email_address = ''
-    try:
-        credentials = exchange_code(authorization_code)
-        user_info = get_user_info(credentials)
-        email_address = user_info.get('email')
-        user_id = user_info.get('id')
-        if credentials.refresh_token is not None:
-            #store_credentials(user_id, credentials)
-            return credentials
-        else:
-            #credentials = get_stored_credentials(user_id)
-            if credentials and credentials.refresh_token is not None:
-                return credentials
-    except CodeExchangeException as error:
-        logging.error('An error occurred during code exchange.')
-        # Drive apps should try to retrieve the user and credentials for the current
-        # session.
-        # If none is available, redirect the user to the authorization URL.
-        error.authorization_url = get_authorization_url(email_address, state)
-        raise error
-    except NoUserIdException:
-        logging.error('No user ID could be retrieved.')
-    # No refresh token has been retrieved.
-    authorization_url = get_authorization_url(email_address, state)
-    raise NoRefreshTokenException(authorization_url)
-
-
 def update_thread_labels(service, user_id):
     """Updates the lables in a thread.
 
@@ -219,18 +152,23 @@ def update_thread_labels(service, user_id):
         Thread with modified Labels.
     """
     query = 'in:inbox'
+    # obtain thread ids
+    thread_ids = []
     try:
         response = service.users().threads().list(userId=user_id, q=query).execute()
-        threads = []
-        if 'threads' in response:
-            threads.extend(response['threads'])
-
-        while 'nextPageToken' in response:
-            page_token = response['nextPageToken']
+    except errors.HttpError as error:
+        print('An error occurred: {0}'.format(error))
+    if 'threads' in response:
+        thread_ids.extend([t['id'] for t in response['threads']])
+    while 'nextPageToken' in response:
+        page_token = response['nextPageToken']
+        try:
             response = service.users().threads().list(userId=user_id, q=query,
                                                       pageToken=page_token).execute()
-            threads.extend(response['threads'])
-        print(threads)
+        except errors.HttpError as error:
+            print('An error occurred: {0}'.format(error))
+        thread_ids.extend([t['id'] for t in response['threads']])
+    pprint(thread_ids)
 
         #thread = service.users().threads().modify(userId=user_id, id=thread_id,
         #                                      body=msg_labels).execute()
@@ -239,8 +177,6 @@ def update_thread_labels(service, user_id):
 
         #print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
         #return thread
-    except errors.HttpError as error:
-        print('An error occurred: {0}'.format(error))
 
 
 #def CreateMsgLabels():
@@ -265,10 +201,6 @@ def main(args=None):
         storage, credentials = load_token()
     else:
         storage, credentials = store_token()
-    state = 500
-    #auth_uri = get_authorization_url('scopatz@gmail.com', state)
-    #auth_code = urlparse(auth_uri).query.partition('=')[2]
-    #credentials = get_credentials(auth_code, state)
     service = gmail_service(credentials)
     user_info = get_user_info(credentials)
     user_id = user_info.get('id')
