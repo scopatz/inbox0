@@ -152,14 +152,15 @@ def update_thread_labels(service, user_id):
         Thread with modified Labels.
     """
     query = 'in:inbox'
-    # obtain thread ids
-    thread_ids = []
+    labels = {'removeLabelIds': ['INBOX'], 'addLabelIds': []}
+    # obtain threads
+    threads = []
     try:
         response = service.users().threads().list(userId=user_id, q=query).execute()
     except errors.HttpError as error:
         print('An error occurred: {0}'.format(error))
     if 'threads' in response:
-        thread_ids.extend([t['id'] for t in response['threads']])
+        threads.extend(response['threads'])
     while 'nextPageToken' in response:
         page_token = response['nextPageToken']
         try:
@@ -167,25 +168,15 @@ def update_thread_labels(service, user_id):
                                                       pageToken=page_token).execute()
         except errors.HttpError as error:
             print('An error occurred: {0}'.format(error))
-        thread_ids.extend([t['id'] for t in response['threads']])
-    pprint(thread_ids)
-
-        #thread = service.users().threads().modify(userId=user_id, id=thread_id,
-        #                                      body=msg_labels).execute()
-        #thread_id = thread['id']
-        #label_ids = thread['messages'][0]['labelIds']
-
-        #print 'Thread ID: %s - With Label IDs %s' % (thread_id, label_ids)
-        #return thread
-
-
-#def CreateMsgLabels():
-#  """Create object to update labels.
-#
-#  Returns:
-#    A label update object.
-#  """
-#  return {'removeLabelIds': [], 'addLabelIds': ['UNREAD', 'Label_2']}
+        threads.extend(response['threads'])
+    # remove from inbox
+    for thread in threads:
+        msg = "Archiving thread {id}: {snippet!r}".format(**thread)
+        try:
+            response = service.users().threads().modify(userId=user_id, id=thread['id'],
+                                                        body=labels).execute()
+        except errors.HttpError as error:
+            print('An error occurred: {0}'.format(error))
 
 
 def gmail_service(credentials):
