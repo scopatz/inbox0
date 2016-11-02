@@ -30,12 +30,38 @@ import httplib2
 #   }
 CLIENTSECRETS_LOCATION = os.path.join(os.path.dirname(__file__), 'cred.json')
 REDIRECT_URI = 'http://localhost:4567'
+REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/gmail.labels',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
 ]
+
+from oauth2client.client import OAuth2WebServerFlow
+from oauth2client.tools import run_flow
+from oauth2client.file import Storage
+
+CLIENT_ID = None
+CLIENT_SECRET = None
+
+def load_client_id_secret():
+    global CLIENT_ID, CLIENT_SECRET
+    with open('cred.json', 'r') as f:
+        cred = json.load(f)
+    CLIENT_ID = cred["web"]["client_id"]
+    CLIENT_SECRET = cred["web"]["client_secret"]
+
+
+def store_token():
+    flow = OAuth2WebServerFlow(client_id=CLIENT_ID,
+                               client_secret=CLIENT_SECRET,
+                               scope=' '.join(SCOPES),
+                               redirect_uri='http://example.com/auth_return')
+    storage = Storage('creds.data')
+    credentials = run_flow(flow, storage)
+    print("access_token: %s" % credentials.access_token)
+
 
 class GetCredentialsException(Exception):
     """Error raised when an error occurred while retrieving credentials.
@@ -74,7 +100,7 @@ def exchange_code(authorization_code):
     Raises:
         CodeExchangeException: an error occurred.
     """
-    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES), REDIRECT_URI)
+    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES))
     try:
         credentials = flow.step2_exchange(authorization_code)
         return credentials
@@ -115,7 +141,7 @@ def get_authorization_url(email_address, state):
     Returns:
         Authorization URL to redirect the user to.
     """
-    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES), REDIRECT_URI)
+    flow = flow_from_clientsecrets(CLIENTSECRETS_LOCATION, ' '.join(SCOPES))
     flow.params['access_type'] = 'offline'
     flow.params['approval_prompt'] = 'force'
     flow.params['user_id'] = email_address
@@ -227,8 +253,14 @@ def gmail_service(credentials):
 
 
 def main(args=None):
+    load_client_id_secret()
+    store_token()
     state = 500
     auth_uri = get_authorization_url('scopatz@gmail.com', state)
+    import subprocess
+    import webbrowser
+    subprocess.call(['xdg-open', auth_uri])
+    #webbrowser.open(auth_uri)
     auth_code = urlparse(auth_uri).query.partition('=')[2]
     credentials = get_credentials(auth_code, state)
     service = gmail_service(credentials)
