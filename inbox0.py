@@ -61,6 +61,13 @@ def store_token():
     storage = Storage('creds.data')
     credentials = run_flow(flow, storage)
     print("access_token: %s" % credentials.access_token)
+    return storage, credentials
+
+
+def load_token():
+    storage = Storage('creds.data')
+    credentials = storage.get()
+    return storage, credentials
 
 
 class GetCredentialsException(Exception):
@@ -254,15 +261,14 @@ def gmail_service(credentials):
 
 def main(args=None):
     load_client_id_secret()
-    store_token()
+    if os.path.isfile('creds.data'):
+        storage, credentials = load_token()
+    else:
+        storage, credentials = store_token()
     state = 500
-    auth_uri = get_authorization_url('scopatz@gmail.com', state)
-    import subprocess
-    import webbrowser
-    subprocess.call(['xdg-open', auth_uri])
-    #webbrowser.open(auth_uri)
-    auth_code = urlparse(auth_uri).query.partition('=')[2]
-    credentials = get_credentials(auth_code, state)
+    #auth_uri = get_authorization_url('scopatz@gmail.com', state)
+    #auth_code = urlparse(auth_uri).query.partition('=')[2]
+    #credentials = get_credentials(auth_code, state)
     service = gmail_service(credentials)
     user_info = get_user_info(credentials)
     user_id = user_info.get('id')
