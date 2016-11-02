@@ -154,6 +154,7 @@ def update_thread_labels(service, user_id):
     query = 'in:inbox'
     labels = {'removeLabelIds': ['INBOX'], 'addLabelIds': []}
     # obtain threads
+    print("Getting thread metadata")
     threads = []
     try:
         response = service.users().threads().list(userId=user_id, q=query).execute()
@@ -172,6 +173,7 @@ def update_thread_labels(service, user_id):
     # remove from inbox
     for thread in threads:
         msg = "Archiving thread {id}: {snippet!r}".format(**thread)
+        print(msg)
         try:
             response = service.users().threads().modify(userId=user_id, id=thread['id'],
                                                         body=labels).execute()
